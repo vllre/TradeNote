@@ -1648,3 +1648,115 @@ export async function useTopstepX(param, param2) {
         resolve()
     })
 }
+
+/****************************
+ * GOATFUNDED
+ ****************************/
+export async function useGoatFunded(param) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            let papaParse = Papa.parse(param, { header: true, skipEmptyLines: true })
+
+            papaParse.data.forEach(element => {
+                // Skip the Total summary row
+                if (!element.ID || element.ID.trim() === '' || !element.Symbol || element.Symbol.trim() === '') return
+
+                // Parse date from DD/MM/YYYY HH:mm:ss → { date: MM/DD/YYYY, time: HH:mm:ss }
+                const parseGoatDate = (dateStr) => {
+                    let parts = dateStr.trim().split(' ')
+                    let dateParts = parts[0].split('/')
+                    return {
+                        date: dateParts[1] + '/' + dateParts[0] + '/' + dateParts[2], // MM/DD/YYYY
+                        time: parts[1] // HH:mm:ss
+                    }
+                }
+
+                let openDateTime = parseGoatDate(element['Open Time'])
+                let closeDateTime = parseGoatDate(element['Close Time'])
+
+                // Strip .x (or similar) suffix from symbol
+                let symbolOriginal = element.Symbol.trim()
+                let symbol = symbolOriginal.replace(/\.\w+$/, '')
+
+                let volume = Number(element.Volume)
+                let openPrice = Number(element['Open Price'])
+                let closePrice = Number(element['Close Price'])
+                let swap = Number(element.Swap)
+                let commission = Number(element.Commission)
+                let profit = Number(element.Profit)
+
+                // Gross P&L = Net profit minus commission and swap fees
+                let grossProfit = profit - commission - swap
+
+                let openSide, closeSide
+                if (element.Side.trim().toUpperCase() === 'BUY') {
+                    openSide = 'B'
+                    closeSide = 'S'
+                } else {
+                    openSide = 'SS'
+                    closeSide = 'BC'
+                }
+
+                // === OPEN EXECUTION ===
+                let tempOpen = {}
+                tempOpen.Account = 'GoatFunded'
+                tempOpen['T/D'] = openDateTime.date
+                tempOpen['S/D'] = openDateTime.date
+                tempOpen.Currency = 'USD'
+                tempOpen.Type = 'forex'
+                tempOpen.Side = openSide
+                tempOpen.SymbolOriginal = symbolOriginal
+                tempOpen.Symbol = symbol
+                tempOpen.Qty = volume.toString()
+                tempOpen.Price = openPrice.toString()
+                tempOpen['Exec Time'] = openDateTime.time
+                tempOpen.Comm = '0'
+                tempOpen.SEC = '0'
+                tempOpen.TAF = '0'
+                tempOpen.NSCC = '0'
+                tempOpen.Nasdaq = '0'
+                tempOpen['ECN Remove'] = '0'
+                tempOpen['ECN Add'] = '0'
+                tempOpen['Gross Proceeds'] = '0'
+                tempOpen['Net Proceeds'] = '0'
+                tempOpen['Clr Broker'] = ''
+                tempOpen.Liq = ''
+                tempOpen.Note = ''
+                tradesData.push(tempOpen)
+
+                // === CLOSE EXECUTION ===
+                let tempClose = {}
+                tempClose.Account = 'GoatFunded'
+                tempClose['T/D'] = closeDateTime.date
+                tempClose['S/D'] = closeDateTime.date
+                tempClose.Currency = 'USD'
+                tempClose.Type = 'forex'
+                tempClose.Side = closeSide
+                tempClose.SymbolOriginal = symbolOriginal
+                tempClose.Symbol = symbol
+                tempClose.Qty = volume.toString()
+                tempClose.Price = closePrice.toString()
+                tempClose['Exec Time'] = closeDateTime.time
+                tempClose.Comm = commission.toString()
+                tempClose.SEC = swap.toString()
+                tempClose.TAF = '0'
+                tempClose.NSCC = '0'
+                tempClose.Nasdaq = '0'
+                tempClose['ECN Remove'] = '0'
+                tempClose['ECN Add'] = '0'
+                tempClose['Gross Proceeds'] = grossProfit.toString()
+                tempClose['Net Proceeds'] = profit.toString()
+                tempClose['Clr Broker'] = ''
+                tempClose.Liq = ''
+                tempClose.Note = ''
+                tradesData.push(tempClose)
+            })
+
+            //console.log(' -> Trades Data\n' + JSON.stringify(tradesData))
+        } catch (error) {
+            console.log('  --> ERROR ' + error)
+            reject(error)
+        }
+        resolve()
+    })
+}
